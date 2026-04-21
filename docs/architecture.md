@@ -36,7 +36,11 @@ The app uses API routes because browser-only code cannot scan `~/.codex`. The fr
 
 ## Caching
 
-V1 only uses in-memory analysis caching by rollout path and file mtime. There is no app database.
+V1 only uses in-memory analysis caching by rollout path, file mtime, and file size. There is no app database.
+
+## Live Updates
+
+The app uses polling rather than SSE or websockets. The browser refreshes the session list every few seconds, and the API classifies each session as likely live, recent, idle, or archived from Codex SQLite timestamps plus rollout file stats. The selected session stays under user control; if its activity signature changes, the browser refreshes that analysis in the background without resetting filters or changing the selected session.
 
 ## Design Bias
 

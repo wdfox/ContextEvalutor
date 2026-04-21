@@ -27,10 +27,12 @@ http://localhost:3000
 Confirm:
 
 - Session list loads from `~/.codex`.
+- Sidebar session activity badges appear and the list refreshes without stealing focus from the selected session.
 - Selecting a session renders a non-empty context timeline.
 - Summary cards show latest input tokens, estimated trace tokens, cache share, top category, and top tool.
 - Breakdown and Top Tools panels are non-empty.
 - Event table filters work.
+- Background refresh of the selected session does not reset event filters or close the payload drawer.
 - Clicking an event opens the raw payload drawer.
 - No Next.js error overlay is present.
 - Browser console has no errors.

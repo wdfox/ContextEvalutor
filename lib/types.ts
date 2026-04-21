@@ -9,6 +9,8 @@ export type EventCategory =
   | "token-sample"
   | "other";
 
+export type ActivityStatus = "likely-live" | "recent" | "idle" | "archived";
+
 export type TraceSession = {
   id: string;
   title: string;
@@ -20,6 +22,10 @@ export type TraceSession = {
   tokenTotal: number;
   rolloutPath: string;
   archived: boolean;
+  lastActivityAt: number | null;
+  rolloutMtimeMs: number | null;
+  rolloutSizeBytes: number | null;
+  activityStatus: ActivityStatus;
 };
 
 export type TokenUsage = {

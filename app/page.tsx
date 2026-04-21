@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -46,6 +46,15 @@ const CATEGORY_LABELS: Record<EventCategory, string> = {
   other: "Other",
 };
 
+const ACTIVITY_LABELS: Record<TraceSession["activityStatus"], string> = {
+  "likely-live": "Live",
+  recent: "Recent",
+  idle: "Idle",
+  archived: "Archived",
+};
+
+const POLL_INTERVAL_MS = 3000;
+
 export default function Home() {
   const [sessions, setSessions] = useState<TraceSession[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -57,17 +66,45 @@ export default function Home() {
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const selectedIdRef = useRef<string | null>(null);
+  const lastAnalyzedSignatureRef = useRef<Record<string, string>>({});
+  const inFlightAnalysisRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    void loadSessions();
+    void loadSessions({ initial: true });
+    const interval = window.setInterval(() => {
+      void loadSessions({ background: true });
+    }, POLL_INTERVAL_MS);
+    return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
 
   useEffect(() => {
     if (!selectedId) {
       return;
     }
-    void loadAnalysis(selectedId);
+    void loadAnalysis(selectedId, { resetFilters: true });
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!selectedId || !analysis || analysis.session.id !== selectedId) {
+      return;
+    }
+
+    const selectedSession = sessions.find((session) => session.id === selectedId);
+    if (!selectedSession) {
+      return;
+    }
+
+    const nextSignature = activitySignature(selectedSession);
+    const lastAnalyzedSignature = lastAnalyzedSignatureRef.current[selectedId];
+    if (lastAnalyzedSignature && nextSignature !== lastAnalyzedSignature) {
+      void loadAnalysis(selectedId, { background: true });
+    }
+  }, [analysis, selectedId, sessions]);
 
   const filteredSessions = useMemo(() => {
     const lowered = query.toLowerCase();
@@ -97,9 +134,15 @@ export default function Home() {
     return analysis?.toolTotals.map((tool) => tool.toolName) ?? [];
   }, [analysis]);
 
-  async function loadSessions() {
-    setLoadingSessions(true);
-    setError(null);
+  const liveSuggestion = useMemo(() => {
+    return sessions.find((session) => session.activityStatus === "likely-live" && session.id !== selectedId) ?? null;
+  }, [selectedId, sessions]);
+
+  async function loadSessions(options: { initial?: boolean; background?: boolean } = {}) {
+    if (!options.background) {
+      setLoadingSessions(true);
+      setError(null);
+    }
     try {
       const response = await fetch("/api/sessions");
       const payload = (await response.json()) as { sessions?: TraceSession[]; error?: string };
@@ -108,31 +151,59 @@ export default function Home() {
       }
       const nextSessions = payload.sessions ?? [];
       setSessions(nextSessions);
-      setSelectedId((current) => current ?? nextSessions[0]?.id ?? null);
+      if (options.initial) {
+        setSelectedId((current) => current ?? nextSessions[0]?.id ?? null);
+      }
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Unable to list Codex sessions.");
+      if (!options.background) {
+        setError(loadError instanceof Error ? loadError.message : "Unable to list Codex sessions.");
+      }
     } finally {
-      setLoadingSessions(false);
+      if (!options.background) {
+        setLoadingSessions(false);
+      }
     }
   }
 
-  async function loadAnalysis(id: string) {
-    setLoadingAnalysis(true);
-    setError(null);
+  async function loadAnalysis(
+    id: string,
+    options: { background?: boolean; resetFilters?: boolean } = {},
+  ) {
+    const requestKey = id;
+    if (inFlightAnalysisRef.current.has(requestKey)) {
+      return;
+    }
+    inFlightAnalysisRef.current.add(requestKey);
+    if (!options.background) {
+      setLoadingAnalysis(true);
+      setError(null);
+    }
     try {
       const response = await fetch(`/api/sessions/${encodeURIComponent(id)}`);
       const payload = (await response.json()) as ContextAnalysis | { error?: string };
       if (!response.ok) {
         throw new Error("error" in payload ? payload.error : "Unable to analyze session.");
       }
-      setAnalysis(payload as ContextAnalysis);
-      setCategoryFilter("all");
-      setToolFilter("all");
+      if (selectedIdRef.current !== id) {
+        return;
+      }
+      const nextAnalysis = payload as ContextAnalysis;
+      lastAnalyzedSignatureRef.current[id] = activitySignature(nextAnalysis.session);
+      setAnalysis(nextAnalysis);
+      if (options.resetFilters) {
+        setCategoryFilter("all");
+        setToolFilter("all");
+      }
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Unable to analyze session.");
-      setAnalysis(null);
+      if (!options.background) {
+        setError(loadError instanceof Error ? loadError.message : "Unable to analyze session.");
+        setAnalysis(null);
+      }
     } finally {
-      setLoadingAnalysis(false);
+      inFlightAnalysisRef.current.delete(requestKey);
+      if (!options.background) {
+        setLoadingAnalysis(false);
+      }
     }
   }
 
@@ -159,7 +230,12 @@ export default function Home() {
               placeholder="Title, cwd, model..."
             />
           </label>
-          <button className="icon-button" onClick={loadSessions} title="Refresh sessions" aria-label="Refresh sessions">
+          <button
+            className="icon-button"
+            onClick={() => void loadSessions()}
+            title="Refresh sessions"
+            aria-label="Refresh sessions"
+          >
             <RefreshCcw size={18} aria-hidden="true" />
           </button>
         </div>
@@ -176,8 +252,11 @@ export default function Home() {
             >
               <span className="session-title">{truncate(session.title, 92)}</span>
               <span className="session-meta">
-                <span>{formatDate(session.updatedAt)}</span>
+                <span>{formatDate(session.lastActivityAt)}</span>
                 <span>{compactNumber(session.tokenTotal)} tokens</span>
+              </span>
+              <span className={`activity-badge ${session.activityStatus}`}>
+                {ACTIVITY_LABELS[session.activityStatus]}
               </span>
             </button>
           ))}
@@ -203,6 +282,19 @@ export default function Home() {
 
         {analysis && !loadingAnalysis ? (
           <>
+            {liveSuggestion ? (
+              <div className="live-suggestion">
+                <div>
+                  <p className="kicker">Live Session Detected</p>
+                  <strong>{truncate(liveSuggestion.title, 110)}</strong>
+                  <span>{formatDate(liveSuggestion.lastActivityAt)} · {compactNumber(liveSuggestion.tokenTotal)} tokens</span>
+                </div>
+                <button className="secondary-button" onClick={() => setSelectedId(liveSuggestion.id)}>
+                  View live session
+                </button>
+              </div>
+            ) : null}
+
             <header className="topbar">
               <div>
                 <p className="kicker">Codex Session</p>
@@ -212,9 +304,14 @@ export default function Home() {
                   exploration.
                 </p>
               </div>
-              <div className="path-chip" title={analysis.session.rolloutPath}>
-                <FileJson size={16} aria-hidden="true" />
-                <span>{analysis.session.rolloutPath}</span>
+              <div className="topbar-actions">
+                <div className="path-chip" title={analysis.session.rolloutPath}>
+                  <FileJson size={16} aria-hidden="true" />
+                  <span>{analysis.session.rolloutPath}</span>
+                </div>
+                <span className={`activity-badge large ${analysis.session.activityStatus}`}>
+                  {ACTIVITY_LABELS[analysis.session.activityStatus]}
+                </span>
               </div>
             </header>
 
@@ -508,4 +605,15 @@ function formatDate(value: number | null) {
 
 function truncate(value: string, length: number) {
   return value.length > length ? `${value.slice(0, length - 1)}...` : value;
+}
+
+function activitySignature(session: TraceSession) {
+  return [
+    session.lastActivityAt ?? 0,
+    session.updatedAt ?? 0,
+    session.tokenTotal,
+    session.rolloutMtimeMs ?? 0,
+    session.rolloutSizeBytes ?? 0,
+    session.activityStatus,
+  ].join(":");
 }

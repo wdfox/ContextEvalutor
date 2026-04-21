@@ -25,11 +25,24 @@ The `threads` table provides:
 - `model`
 - `created_at`
 - `updated_at`
+- `created_at_ms`
+- `updated_at_ms`
 - `tokens_used`
 - `rollout_path`
 - `archived`
 
 `rollout_path` is the bridge from session metadata to the full JSONL trace.
+
+## Live Activity Signals
+
+Codex does not expose an authoritative "current active session" flag, so V1 infers activity from:
+
+- SQLite `updated_at`/`updated_at_ms`.
+- Rollout file mtime.
+- Rollout file size.
+- Archived state.
+
+The importer reports `lastActivityAt`, `rolloutMtimeMs`, `rolloutSizeBytes`, and `activityStatus` for each session. Non-archived sessions are classified as likely live when activity is within roughly 2 minutes, recent within roughly 30 minutes, and idle otherwise. Archived sessions always keep the archived status even if their files are fresh.
 
 ## JSONL Event Shapes
 
