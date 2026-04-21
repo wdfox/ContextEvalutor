@@ -31,6 +31,13 @@ Keep this file lightweight. It is the quick orientation for agents working in th
 - Prefer small, focused UI changes that preserve the local-first exploratory workflow.
 - When finishing a meaningful task, update relevant README/docs/roadmap notes so the repo stays understandable for the next session.
 
+## Experiments
+
+- It is okay for product experiments to fail. Do not force a prototype forward just because it technically works.
+- For experiments that do not work out, preserve the learning before discarding code. Add a short note under `docs/experiments/` with what was tried, what worked, what felt wrong, and what to try next.
+- Do not merge or commit failed experiment code to `main` unless the user explicitly wants an archived prototype. Prefer keeping `main` clean and carrying forward only the useful docs or small reusable pieces.
+- If an experiment branch is abandoned, summarize the branch state and ask whether to delete it, keep it locally, or make a clearly named archive commit.
+
 ## Branching
 
 - Keep `main` stable and shippable.
