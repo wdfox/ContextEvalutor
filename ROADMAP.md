@@ -14,6 +14,18 @@
 - Add comparison between two runs: top context consumers, tool mix, cache ratio, and context-window pressure.
 - Add richer "context health" warnings: oversized tool outputs, repetitive reads, high setup cost, and low cache effectiveness.
 
+## Milestones
+
+### Milestone 2: Live Context Explorer
+
+Make the app feel alive while Codex is actively running.
+
+- Detect the latest active Codex session.
+- Add a Live mode that polls the rollout JSONL file every few seconds.
+- Update the context timeline, summary cards, breakdowns, and event table as new events arrive.
+- Add warning states for high context-window usage, tool output spikes, repeated reads, and prompt-heavy sessions.
+- Add a public screenshot mode that hides raw content, local paths, and sensitive titles.
+
 ## Later
 
 - Package a macOS menu bar companion that shows current session context usage ambiently.
