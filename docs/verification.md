@@ -5,9 +5,10 @@
 Run these after importer or UI changes:
 
 ```bash
-npm test
-npm run build
+npm run verify
 ```
+
+`npm run verify` runs the required automated checks: `npm test` and `npm run build`.
 
 ## Browser Check
 
@@ -33,6 +34,17 @@ Confirm:
 - Clicking an event opens the raw payload drawer.
 - No Next.js error overlay is present.
 - Browser console has no errors.
+
+## Browser Testing Direction
+
+Use browser checks in layers:
+
+- Use Playwright CLI for fast exploratory checks while developing UI or interaction changes.
+- Add committed smoke tests only for stable app-spine behavior: boot, fixture-backed session load, session selection, key panels, event table, payload drawer, and console-error detection.
+- Back smoke tests with small synthetic Codex fixtures instead of live `~/.codex` data so they are deterministic and privacy-safe.
+- Keep Computer Use as a fallback for desktop-level flows that Playwright cannot inspect, not as the default web-app test path.
+
+Do not add smoke coverage just to mirror manual clicking. Add it when the behavior is stable enough to be a regression guard.
 
 ## Current Verification Notes
 
