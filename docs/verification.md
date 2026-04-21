@@ -1,0 +1,50 @@
+# Verification
+
+## Required Checks
+
+Run these after importer or UI changes:
+
+```bash
+npm test
+npm run build
+```
+
+## Browser Check
+
+Start the dev server:
+
+```bash
+npm run dev
+```
+
+Then open:
+
+```text
+http://localhost:3000
+```
+
+Confirm:
+
+- Session list loads from `~/.codex`.
+- Selecting a session renders a non-empty context timeline.
+- Summary cards show latest input tokens, estimated trace tokens, cache share, top category, and top tool.
+- Breakdown and Top Tools panels are non-empty.
+- Event table filters work.
+- Clicking an event opens the raw payload drawer.
+- No Next.js error overlay is present.
+- Browser console has no errors.
+
+## Current Verification Notes
+
+The initial implementation was verified against local Codex data:
+
+- API discovered 170 Codex sessions.
+- Current planning/build session imported successfully.
+- Browser rendered timeline, analysis, and top tools.
+- No browser console errors after adding `app/icon.svg`.
+
+## Known Tooling Notes
+
+- `agent-browser` was not available in the shell during initial verification.
+- The bundled Playwright skill was used instead.
+- `npm install` reported 5 moderate audit advisories and a Node-engine warning from an ESLint subdependency on Node 23. These did not block tests or production build.
