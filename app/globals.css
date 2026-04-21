@@ -149,6 +149,50 @@ pre {
   margin-top: 5px;
 }
 
+.activity-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 4px 8px;
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  border: 1px solid transparent;
+}
+
+.activity-badge.large {
+  margin-top: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.activity-badge.likely-live {
+  color: #114b38;
+  background: rgba(39, 124, 98, 0.14);
+  border-color: rgba(39, 124, 98, 0.28);
+}
+
+.activity-badge.recent {
+  color: #704d13;
+  background: rgba(183, 131, 37, 0.16);
+  border-color: rgba(183, 131, 37, 0.28);
+}
+
+.activity-badge.idle {
+  color: var(--muted);
+  background: rgba(29, 35, 32, 0.06);
+  border-color: rgba(29, 35, 32, 0.08);
+}
+
+.activity-badge.archived {
+  color: #7d332b;
+  background: rgba(181, 81, 69, 0.12);
+  border-color: rgba(181, 81, 69, 0.24);
+}
+
 .main {
   padding: 26px;
   min-width: 0;
@@ -160,6 +204,48 @@ pre {
   gap: 18px;
   align-items: flex-start;
   margin-bottom: 22px;
+}
+
+.live-suggestion {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid rgba(39, 124, 98, 0.28);
+  border-radius: 8px;
+  background: rgba(39, 124, 98, 0.1);
+  padding: 13px 14px;
+  margin-bottom: 18px;
+}
+
+.live-suggestion strong,
+.live-suggestion span {
+  display: block;
+}
+
+.live-suggestion strong {
+  line-height: 1.25;
+}
+
+.live-suggestion span {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.secondary-button {
+  border: 1px solid rgba(39, 124, 98, 0.35);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  padding: 10px 12px;
+  min-height: 42px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.secondary-button:hover {
+  border-color: var(--green);
 }
 
 .kicker {
@@ -176,6 +262,13 @@ pre {
   line-height: 1;
   margin: 0 0 8px;
   max-width: 920px;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
 }
 
 .subtitle {
@@ -499,6 +592,15 @@ pre {
   }
 
   .topbar {
+    flex-direction: column;
+  }
+
+  .topbar-actions {
+    width: 100%;
+  }
+
+  .live-suggestion {
+    align-items: flex-start;
     flex-direction: column;
   }
 }

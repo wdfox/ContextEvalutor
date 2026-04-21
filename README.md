@@ -9,6 +9,7 @@ The wedge is narrow on purpose: help builders answer "where did my context go?" 
 - Local web app at `http://localhost:3000`.
 - Read-only importer for Codex session metadata and rollout JSONL files.
 - Session browser, context timeline, category/tool breakdowns, event table, and raw event drawer.
+- Polling-based live updates that keep the selected session focused while the sidebar tracks active sessions.
 - Exact Codex turn-level token samples where available.
 - Estimated per-event attribution using `gpt-tokenizer`.
 
@@ -28,6 +29,7 @@ npm run build
 - [Codex importer](docs/codex-importer.md)
 - [Data model](docs/data-model.md)
 - [Verification](docs/verification.md)
+- [Improvement backlog](docs/improvement-backlog.md)
 - [Roadmap and work in progress](ROADMAP.md)
 
 ## Privacy Posture

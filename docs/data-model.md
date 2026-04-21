@@ -18,6 +18,19 @@ Key fields:
 - `tokenTotal`
 - `rolloutPath`
 - `archived`
+- `lastActivityAt`
+- `rolloutMtimeMs`
+- `rolloutSizeBytes`
+- `activityStatus`
+
+`activityStatus` is a heuristic used by the live UI. Values are:
+
+- `likely-live`: non-archived activity within roughly 2 minutes.
+- `recent`: non-archived activity within roughly 30 minutes.
+- `idle`: no recent non-archived activity.
+- `archived`: archived Codex session, regardless of freshness.
+
+`lastActivityAt` uses the freshest known session timestamp from Codex metadata and rollout file stats. It is useful for sorting and live detection, but it is not an authoritative active-session signal.
 
 ## TraceEvent
 

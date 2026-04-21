@@ -5,6 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { byteSize, estimateTokens, stringifyForTokenEstimate } from "./token-estimator";
 import type {
+  ActivityStatus,
   CategoryTotal,
   ContextAnalysis,
   EventCategory,
@@ -17,6 +18,8 @@ import type {
 } from "./types";
 
 const execFileAsync = promisify(execFile);
+const LIKELY_LIVE_WINDOW_MS = 2 * 60 * 1000;
+const RECENT_WINDOW_MS = 30 * 60 * 1000;
 const CATEGORIES: EventCategory[] = [
   "setup",
   "user",
@@ -29,7 +32,7 @@ const CATEGORIES: EventCategory[] = [
   "other",
 ];
 
-const analysisCache = new Map<string, { mtimeMs: number; analysis: ContextAnalysis }>();
+const analysisCache = new Map<string, { mtimeMs: number; size: number; analysis: ContextAnalysis }>();
 
 type RawCodexLine = {
   timestamp?: string;
@@ -43,11 +46,18 @@ type SqlThreadRow = {
   source: string;
   cwd: string;
   model: string | null;
-  createdAt: number | null;
-  updatedAt: number | null;
+  createdAtSeconds: number | null;
+  updatedAtSeconds: number | null;
+  createdAtMs: number | null;
+  updatedAtMs: number | null;
   tokenTotal: number;
   rolloutPath: string;
   archived: boolean;
+};
+
+type RolloutStat = {
+  mtimeMs: number | null;
+  size: number | null;
 };
 
 export async function listCodexSessions(codexHome = defaultCodexHome()): Promise<TraceSession[]> {
@@ -71,14 +81,36 @@ export async function analyzeCodexSession(
 
   const stat = await fs.stat(session.rolloutPath);
   const cached = analysisCache.get(session.rolloutPath);
-  if (cached && cached.mtimeMs === stat.mtimeMs) {
+  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
     return cached.analysis;
   }
 
   const { events, tokenSamples, warnings } = await parseRolloutFile(session.rolloutPath);
   const analysis = buildAnalysis(session, events, tokenSamples, warnings);
-  analysisCache.set(session.rolloutPath, { mtimeMs: stat.mtimeMs, analysis });
+  analysisCache.set(session.rolloutPath, { mtimeMs: stat.mtimeMs, size: stat.size, analysis });
   return analysis;
+}
+
+export function classifyActivityStatus(
+  lastActivityAt: number | null,
+  archived: boolean,
+  nowMs = Date.now(),
+): ActivityStatus {
+  if (archived) {
+    return "archived";
+  }
+  if (!lastActivityAt) {
+    return "idle";
+  }
+
+  const ageMs = nowMs - lastActivityAt;
+  if (ageMs <= LIKELY_LIVE_WINDOW_MS) {
+    return "likely-live";
+  }
+  if (ageMs <= RECENT_WINDOW_MS) {
+    return "recent";
+  }
+  return "idle";
 }
 
 export async function parseRolloutFile(filePath: string): Promise<{
@@ -361,25 +393,34 @@ async function listSessionsFromSqlite(codexHome: string): Promise<TraceSession[]
     const { stdout } = await execFileAsync("sqlite3", [
       "-json",
       dbPath,
-      `SELECT id, title, source, cwd, model, created_at AS createdAt, updated_at AS updatedAt,
+      `SELECT id, title, source, cwd, model,
+              created_at AS createdAtSeconds, updated_at AS updatedAtSeconds,
+              created_at_ms AS createdAtMs, updated_at_ms AS updatedAtMs,
               tokens_used AS tokenTotal, rollout_path AS rolloutPath, archived
        FROM threads
        WHERE rollout_path IS NOT NULL AND rollout_path != ''
        ORDER BY updated_at DESC;`,
     ]);
     const rows = JSON.parse(stdout || "[]") as SqlThreadRow[];
-    return rows.map((row) => ({
-      id: row.id,
-      title: row.title || "Untitled Codex Session",
-      source: row.source || "codex",
-      cwd: row.cwd || "",
-      model: row.model,
-      createdAt: normalizeEpoch(row.createdAt),
-      updatedAt: normalizeEpoch(row.updatedAt),
-      tokenTotal: Number(row.tokenTotal) || 0,
-      rolloutPath: row.rolloutPath,
-      archived: Boolean(row.archived),
-    }));
+    return Promise.all(
+      rows.map(async (row) => {
+        const createdAt = normalizeEpoch(row.createdAtMs ?? row.createdAtSeconds);
+        const updatedAt = normalizeEpoch(row.updatedAtMs ?? row.updatedAtSeconds);
+        const rolloutStat = await readRolloutStat(row.rolloutPath);
+        return withActivityMetadata({
+          id: row.id,
+          title: row.title || "Untitled Codex Session",
+          source: row.source || "codex",
+          cwd: row.cwd || "",
+          model: row.model,
+          createdAt,
+          updatedAt,
+          tokenTotal: Number(row.tokenTotal) || 0,
+          rolloutPath: row.rolloutPath,
+          archived: Boolean(row.archived),
+        }, rolloutStat);
+      }),
+    );
   } catch {
     return [];
   }
@@ -395,7 +436,7 @@ async function listSessionsFromFiles(codexHome: string): Promise<TraceSession[]>
     files.map(async (file) => {
       const stat = await fs.stat(file);
       const id = sessionIdFromPath(file);
-      return {
+      return withActivityMetadata({
         id,
         title: id,
         source: "codex-jsonl",
@@ -406,10 +447,33 @@ async function listSessionsFromFiles(codexHome: string): Promise<TraceSession[]>
         tokenTotal: 0,
         rolloutPath: file,
         archived: file.includes(`${path.sep}archived_sessions${path.sep}`),
-      } satisfies TraceSession;
+      }, { mtimeMs: stat.mtimeMs, size: stat.size });
     }),
   );
   return sessions;
+}
+
+async function readRolloutStat(rolloutPath: string): Promise<RolloutStat> {
+  try {
+    const stat = await fs.stat(rolloutPath);
+    return { mtimeMs: stat.mtimeMs, size: stat.size };
+  } catch {
+    return { mtimeMs: null, size: null };
+  }
+}
+
+function withActivityMetadata(
+  session: Omit<TraceSession, "lastActivityAt" | "rolloutMtimeMs" | "rolloutSizeBytes" | "activityStatus">,
+  rolloutStat: RolloutStat,
+): TraceSession {
+  const lastActivityAt = maxNumber(session.updatedAt, rolloutStat.mtimeMs, session.createdAt);
+  return {
+    ...session,
+    lastActivityAt,
+    rolloutMtimeMs: rolloutStat.mtimeMs,
+    rolloutSizeBytes: rolloutStat.size,
+    activityStatus: classifyActivityStatus(lastActivityAt, session.archived),
+  };
 }
 
 async function collectJsonlFiles(roots: string[]): Promise<string[]> {
@@ -539,7 +603,7 @@ function isMcpTool(toolName: string | null) {
 }
 
 function sortSessions(sessions: TraceSession[]) {
-  return [...sessions].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+  return [...sessions].sort((a, b) => (b.lastActivityAt ?? 0) - (a.lastActivityAt ?? 0));
 }
 
 function sessionIdFromPath(filePath: string) {
@@ -555,6 +619,11 @@ function normalizeEpoch(value: number | null) {
     return null;
   }
   return value > 10_000_000_000 ? value : value * 1000;
+}
+
+function maxNumber(...values: Array<number | null>) {
+  const numbers = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  return numbers.length > 0 ? Math.max(...numbers) : null;
 }
 
 function numberOrZero(value: unknown) {
