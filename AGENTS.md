@@ -31,6 +31,18 @@ Keep this file lightweight. It is the quick orientation for agents working in th
 - Prefer small, focused UI changes that preserve the local-first exploratory workflow.
 - When finishing a meaningful task, update relevant README/docs/roadmap notes so the repo stays understandable for the next session.
 
+## Branching
+
+- Keep `main` stable and shippable.
+- Use short-lived branches for meaningful work: `feature/<short-name>`, `fix/<short-name>`, `docs/<short-name>`, or `chore/<short-name>`.
+- Keep each branch scoped to one coherent task or experiment.
+- Before starting work, check `git status --short --branch` and avoid mixing unrelated local changes.
+- For meaningful code/product work, create a new branch from `main` or ask the user which branch to use before editing.
+- If already on a non-`main` branch, continue there only if the branch clearly matches the requested work; otherwise ask first.
+- Commit only reviewed, intentional files. Do not stage generated artifacts such as `.next/`, `.playwright-cli/`, or `node_modules/`.
+- At the end of a meaningful task, summarize changed files and verification, then ask whether to commit, push, or open a PR unless the user already gave explicit git instructions.
+- Push branches and open a PR for larger feature work, risky importer changes, or anything that benefits from review/history. Tiny docs-only follow-ups can be committed directly to `main` only if the user asks.
+
 ## Verification
 
 For code changes, run:
