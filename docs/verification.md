@@ -5,9 +5,10 @@
 Run these after importer or UI changes:
 
 ```bash
-npm test
-npm run build
+npm run verify
 ```
+
+`npm run verify` runs the required automated checks: `npm test` and `npm run build`.
 
 ## Browser Check
 

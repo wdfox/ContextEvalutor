@@ -19,6 +19,7 @@ npm install
 npm run dev
 npm test
 npm run build
+npm run verify
 ```
 
 ## Key Docs
